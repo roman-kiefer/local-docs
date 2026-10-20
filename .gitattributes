@@ -2,3 +2,6 @@
 *.md text eol=crlf
 *.json text eol=crlf
 *.ps1 text eol=crlf
+*.mod text eol=crlf
+.gitattributes text eol=crlf
+.gitignore text eol=crlf
