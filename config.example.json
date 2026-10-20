@@ -1,0 +1,10 @@
+{
+  "sources": [
+    "C:\\example\\manuals",
+    "D:\\example\\release-notes"
+  ],
+  "poppler_bin": "",
+  "pdftotext": "",
+  "libreoffice": "",
+  "enable_legacy_doc": false
+}
