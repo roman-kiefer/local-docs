@@ -7,7 +7,7 @@ Durchsucht verteilte Dokumentation (PDF, DOCX, ODT, MD, TXT) aus mehreren Quello
 - `sync` liest die konfigurierten Quellordner und extrahiert den Text in einen lokalen Index unter `data/`. PDFs werden seitenweise abgelegt.
 - `search` durchsucht diesen Text mit ripgrep. Jeder Treffer nennt ID, Version, Seite bzw. Zeile und den Pfad der Originaldatei.
 - `page` rendert eine PDF-Seite als PNG, um einen Treffer im Original zu pruefen (Tabellen, Abbildungen, Layout).
-- Zwei Skills (`local-doc-search`, `local-doc-sync`) machen die Suche aus Codex und Claude nutzbar.
+- Drei Skills (`local-doc-search`, `local-doc-sync`, `local-doc-update`) machen die Suche aus Codex und Claude nutzbar.
 
 ## Vorteile
 
@@ -30,18 +30,29 @@ Grenzen: Fuer bildbasierte PDFs gibt es keine OCR, sie liefern keinen Text. DOCX
 
 ## Einrichtung
 
-1. Go 1.23 oder neuer, ripgrep (`rg`) und Poppler (`pdfinfo`, `pdftotext`, `pdftoppm`) installieren. `soffice.com` ist nur fuer alte `.doc`-Dateien erforderlich.
-2. `config.example.json` als `config.json` kopieren. Quellordner und Werkzeugpfade an die eigene Maschine anpassen. Weitere Quellordner koennen in `sources` ergaenzt werden. `poppler_bin` und `pdftotext` duerfen leer sein, wenn die Werkzeuge im `PATH` liegen; `pdftotext` kann auch separat konfiguriert werden.
-3. Im Projektordner ausfuehren:
+### Mit fertigem Programm (ohne Go)
+
+1. Von den GitHub-Releases das Archiv `local-docs_<os>_<arch>.zip` laden, entpacken und `local-docs install` ausfuehren. Das kopiert das Programm nach `%LOCALAPPDATA%\Programs\local-docs` (Linux/macOS: `~/.local/bin`), traegt es in den User-PATH ein (`--no-path` verhindert das), legt die Skills unter `~/.claude/skills` und `~/.codex/skills` an (vorhandene abweichende Skills bleiben unberuehrt, `--force` sichert und ersetzt sie) und prueft die externen Werkzeuge.
+2. ripgrep (`rg`) und Poppler (`pdfinfo`, `pdftotext`, `pdftoppm`) muessen weiterhin installiert sein. `soffice.com` ist nur fuer alte `.doc`-Dateien erforderlich.
+3. `config.json` im Datenverzeichnis anpassen (wird von `install` bzw. `init` angelegt).
+
+Das Datenverzeichnis (`config.json`, `data/`) wird in dieser Reihenfolge bestimmt: `--root DIR`, Umgebungsvariable `LOCAL_DOCS_HOME`, das Arbeitsverzeichnis, falls dort eine `config.json` liegt (bisheriges Verhalten), sonst `%LOCALAPPDATA%\local-docs` (Linux/macOS: Benutzer-Konfigurationsverzeichnis). Mit `"data_dir"` in `config.json` laesst sich nur der Index (`data/`) an einen anderen Ort legen; relative Pfade gelten ab dem Datenverzeichnis.
 
 ```powershell
-go run . sync
-go run . search --query "Zeiterfassung"
-go run . search --query "Zeiterfassung" --all
-go run . page --id <ID-aus-Treffer> --page 12
+local-docs sync
+local-docs search --query "Zeiterfassung"
+local-docs search --query "Zeiterfassung" --all
+local-docs page --id <ID-aus-Treffer> --page 12
+local-docs version
 ```
 
-`go build -o local-docs.exe .` erstellt eine eigenstaendige EXE. `local-docs.exe` muss im Projektordner gestartet werden oder mit `--root <Pfad-zum-Checkout>` aufgerufen werden.
+### Aktualisieren
+
+`local-docs update --check` meldet, ob ein neueres Release existiert; `local-docs update` laedt es, prueft die SHA-256-Summe aus `SHA256SUMS`, ersetzt das Programm (die alte Datei bleibt bis zum naechsten Start als `.old`) und aktualisiert die bereits installierten Skills. Nach `sync`, `search` und `page` erscheint hoechstens einmal taeglich ein Hinweis auf stderr, wenn eine neue Version vorliegt; mit `"check_updates": false` in `config.json` abschaltbar. Entwicklungsbuilds (`dev`) pruefen und ersetzen sich nicht. Der Skill `local-doc-update` fuehrt das auf ausdrueckliche Anfrage fuer Agenten aus.
+
+### Aus dem Quellcode
+
+Go 1.23 oder neuer wird nur zum Bauen benoetigt: `go run . search --query "..."` im Projektordner oder `go build -o local-docs.exe .` fuer eine eigenstaendige EXE. Releases entstehen automatisch, wenn ein Tag `v*` gepusht wird (`.github/workflows/release.yml`: Tests, Builds fuer Windows, Linux und macOS, `SHA256SUMS`).
 
 `sync` erkennt PDF, DOCX, ODT sowie Markdown- und Textdateien (MD, TXT; nur Zeilenreferenzen); alte DOC-Dateien nur bei `enable_legacy_doc: true`. Die DOC-Konvertierung erfolgt in einem temporaeren Verzeichnis. Originale werden nur gelesen. Fuer bildbasierte PDFs ist keine OCR enthalten. Gesperrte PDFs und Extraktionsfehler stehen mit Fehlermeldung im Manifest.
 
@@ -63,16 +74,10 @@ Zusaetzlich zu Ordnern kann eine URL in `web_sources` eingetragen werden. `sync`
 
 ## Sicherheit und Grenzen
 
-Das Programm schreibt nur in `data/` und bei `init` eine neue `config.json`. Es verweigert eine Konfiguration, bei der eine Quelle innerhalb des Projektordners oder der Projektordner innerhalb einer Quelle liegt. Dateien mit gleichem Familiennamen und gleicher Version bleiben getrennte Manifest-Eintraege. `-nokey.pdf` hat nur bei dieser Paarung Vorrang. `--all` ist fuer vollstaendige Recherche sinnvoll.
+Das Programm schreibt nur in `data/` (bzw. `data_dir`) und bei `init`/`install` eine neue `config.json`. `install` und `update` aendern zusaetzlich die eigene Programmdatei, den User-PATH und die Skill-Ordner. Es verweigert eine Konfiguration, bei der eine Quelle innerhalb des Projektordners oder der Projektordner innerhalb einer Quelle liegt. Dateien mit gleichem Familiennamen und gleicher Version bleiben getrennte Manifest-Eintraege. `-nokey.pdf` hat nur bei dieser Paarung Vorrang. `--all` ist fuer vollstaendige Recherche sinnvoll.
 
 ## Repository und Skills
 
-Die beiden Skills liegen als einzige bearbeitbare Fassung unter `.agents/skills/local-doc-search/` und `.agents/skills/local-doc-sync/`. Codex erkennt sie automatisch, wenn es in diesem Repository gestartet wird. Fuer die Nutzung aus anderen Projektordnern erzeugt `scripts/install-skills.ps1` persoenliche Verknuepfungen auf diese Ordner:
+Die Skills liegen als einzige bearbeitbare Fassung unter `.agents/skills/` und werden ins Programm eingebettet. `local-docs install` schreibt genau die zur Programmversion passende Fassung in die persoenlichen Skill-Ordner, `local-docs update` frischt sie auf. Codex erkennt sie zusaetzlich automatisch, wenn es in diesem Repository gestartet wird; dann koennen beide Fundorte im Skill-Selektor erscheinen. Vorgaenger-Verknuepfungen aus `scripts/install-skills.ps1` werden von `install --force` gesichert (unter `skill-backups/` im Datenverzeichnis) und ersetzt.
 
-```powershell
-./scripts/install-skills.ps1
-```
-
-Bei der ersten Umstellung von den zuvor einzeln installierten Skills `./scripts/install-skills.ps1 -MigrateExisting` ausfuehren. Vorhandene Skill-Ordner werden dabei unter `data/skill-backups/` gesichert; fremde Skills bleiben unberuehrt. Die Verknuepfungen zeigen immer auf die aktuelle Fassung im Repository. Wenn Codex im Repository und zugleich ueber die persoenlichen Verknuepfungen laeuft, koennen beide Fundorte im Skill-Selektor erscheinen.
-
-Fuer ein neues Checkout `config.example.json` nach `config.json` kopieren und die Quellordner sowie Werkzeugpfade anpassen. Die Beispielkonfiguration enthaelt keine benutzerspezifischen Werkzeugpfade. `config.json`, `data/`, lokale EXE-Dateien und VS-Code-Einstellungen werden nicht versioniert. Der Quellcode und die Repository-Skills stehen unter GPLv3. Lokal eingebundene Originaldokumente und generierte Indexdaten sind nicht Teil des Repositories.
+Fuer ein neues Checkout `local-docs init` (oder `config.example.json` nach `config.json` kopieren) ausfuehren und die Quellordner sowie Werkzeugpfade anpassen. Die Beispielkonfiguration enthaelt keine benutzerspezifischen Werkzeugpfade. `config.json`, `data/`, lokale EXE-Dateien und VS-Code-Einstellungen werden nicht versioniert. Der Quellcode und die Repository-Skills stehen unter GPLv3. Lokal eingebundene Originaldokumente und generierte Indexdaten sind nicht Teil des Repositories.
