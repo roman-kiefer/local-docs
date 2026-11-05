@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -85,7 +86,9 @@ func main() {
 		_ = fs.Parse(flag.Args()[1:])
 		err = updateSelf(root, *check)
 	case "init":
-		err = initConfig(root)
+		if err = initConfig(root); err == nil {
+			fmt.Println("config created:", filepath.Join(root, "config.json"))
+		}
 	case "sync":
 		var cfg Config
 		cfg, err = readConfig(root)
@@ -178,6 +181,9 @@ func readConfig(root string) (Config, error) {
 		}
 		if within(abs, root) || within(root, abs) {
 			return cfg, fmt.Errorf("project and source overlap: %q", source)
+		}
+		if data := dataDir(root); within(abs, data) || within(data, abs) {
+			return cfg, fmt.Errorf("data directory and source overlap: %q", source)
 		}
 		cfg.Sources[i] = filepath.Clean(abs)
 	}
@@ -428,7 +434,10 @@ func poppler(cfg Config, name string) string {
 	if cfg.PopplerBin == "" {
 		return name
 	}
-	return filepath.Join(cfg.PopplerBin, name+".exe")
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(cfg.PopplerBin, name)
 }
 
 func extract(root string, cfg Config, d Document) ([]string, error) {

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -152,5 +153,90 @@ func TestReplaceFileKeepsOld(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(dst + ".old"); string(b) != "old" {
 		t.Fatal("old not kept")
+	}
+}
+
+func releaseServer(t *testing.T, archive []byte, sumLine string) release {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/a":
+			w.Write(archive)
+		case "/s":
+			w.Write([]byte(sumLine))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	r := release{Tag: "v9.0.0"}
+	r.Assets = append(r.Assets, struct {
+		Name string `json:"name"`
+		URL  string `json:"browser_download_url"`
+	}{assetName(), srv.URL + "/a"}, struct {
+		Name string `json:"name"`
+		URL  string `json:"browser_download_url"`
+	}{"SHA256SUMS", srv.URL + "/s"})
+	return r
+}
+
+func TestDownloadVerified(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, _ := zw.Create(exeName())
+	w.Write([]byte("binary"))
+	zw.Close()
+	sum := sha256.Sum256(buf.Bytes())
+	good := hex.EncodeToString(sum[:]) + "  " + assetName() + "\n"
+	got, err := downloadVerified(releaseServer(t, buf.Bytes(), good))
+	if err != nil || string(got) != "binary" {
+		t.Fatalf("good: %v %q", err, got)
+	}
+	bad := strings.Repeat("0", 64) + "  " + assetName() + "\n"
+	if _, err := downloadVerified(releaseServer(t, buf.Bytes(), bad)); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("mismatch not detected: %v", err)
+	}
+	other := hex.EncodeToString(sum[:]) + "  other.zip\n"
+	if _, err := downloadVerified(releaseServer(t, buf.Bytes(), other)); err == nil {
+		t.Fatal("missing checksum entry accepted")
+	}
+}
+
+func TestDevBuildNotUpdated(t *testing.T) {
+	old := version
+	defer func() { version = old }()
+	version = "dev"
+	if err := updateSelf(t.TempDir(), false); err == nil {
+		t.Fatal("dev build must refuse update")
+	}
+	if err := updateSelf(t.TempDir(), true); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDataDirOverlapsSource(t *testing.T) {
+	root := t.TempDir()
+	src := t.TempDir()
+	defer func() { dataDirOverride = "" }()
+	inside := filepath.Join(src, "index")
+	cfg := `{"sources":["` + filepath.ToSlash(src) + `"],"data_dir":"` + filepath.ToSlash(inside) + `"}`
+	os.WriteFile(filepath.Join(root, "config.json"), []byte(cfg), 0600)
+	applyDataDir(root)
+	if _, err := readConfig(root); err == nil {
+		t.Fatal("data_dir inside source accepted")
+	}
+}
+
+func TestRefreshKeepsSymlinkedSkill(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "skills")
+	target := t.TempDir()
+	os.MkdirAll(base, 0755)
+	link := filepath.Join(base, "local-doc-search")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	if err := installSkills(base, t.TempDir(), false, true); err != nil {
+		t.Fatal(err)
+	}
+	if !isSymlink(link) {
+		t.Fatal("refresh replaced a symlinked skill")
 	}
 }

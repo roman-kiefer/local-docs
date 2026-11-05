@@ -77,6 +77,11 @@ func skillMatches(dir string, files map[string][]byte) bool {
 	return true
 }
 
+func isSymlink(p string) bool {
+	fi, err := os.Lstat(p)
+	return err == nil && fi.Mode()&os.ModeSymlink != 0
+}
+
 func writeSkill(dir string, files map[string][]byte) error {
 	for f, b := range files {
 		p := filepath.Join(dir, filepath.FromSlash(f))
@@ -108,6 +113,9 @@ func installSkills(base, root string, force, refresh bool) error {
 			continue
 		case exists && skillMatches(dest, files):
 			fmt.Printf("skill %s: up to date\n", dest)
+			continue
+		case exists && isSymlink(dest) && !force:
+			fmt.Printf("skill %s: is a link, kept (use --force to back up and replace)\n", dest)
 			continue
 		case exists && !force && !refresh:
 			fmt.Printf("skill %s: differs, kept (use --force to back up and replace)\n", dest)
@@ -245,8 +253,10 @@ func addToPath(dir string) error {
 		fmt.Printf("add %s to your PATH, e.g. in your shell profile: export PATH=\"%s:$PATH\"\n", dir, dir)
 		return nil
 	}
-	script := `$d=$env:LOCAL_DOCS_BIN; $p=[Environment]::GetEnvironmentVariable('Path','User'); if(-not $p){$p=''};` +
-		`$parts=@($p -split ';' | Where-Object { $_ }); if($parts -notcontains $d){ [Environment]::SetEnvironmentVariable('Path',(($parts+$d) -join ';'),'User'); 'added' } else { 'present' }`
+	// Edit the raw registry value so %VAR% entries stay unexpanded (REG_EXPAND_SZ).
+	script := `$d=$env:LOCAL_DOCS_BIN; $k=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment',$true);` +
+		`$p=[string]$k.GetValue('Path','',[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames);` +
+		`$parts=@($p -split ';' | Where-Object { $_ }); if($parts -notcontains $d){ $k.SetValue('Path',(($parts+$d) -join ';'),[Microsoft.Win32.RegistryValueKind]::ExpandString); 'added' } else { 'present' }; $k.Close()`
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	cmd.Env = append(os.Environ(), "LOCAL_DOCS_BIN="+dir)
 	out, err := cmd.CombinedOutput()
