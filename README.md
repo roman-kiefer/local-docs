@@ -1,6 +1,32 @@
 # Zentrale Dokumentationssuche
 
-Windows-Kommandozeile in Go. Die Originaldateien verbleiben in den Quellordnern. Der lokale Index liegt unter `data/` und wird vom Programm verwaltet.
+Durchsucht verteilte Dokumentation (PDF, DOCX, ODT, MD, TXT) aus mehreren Quellordnern in einem Schritt und nennt zu jedem Treffer Originalpfad, Version und Seite bzw. Zeile. Windows-Kommandozeile in Go. Die Originaldateien verbleiben in den Quellordnern. Der lokale Index liegt unter `data/` und wird vom Programm verwaltet.
+
+## Was das Tool macht
+
+- `sync` liest die konfigurierten Quellordner und extrahiert den Text in einen lokalen Index unter `data/`. PDFs werden seitenweise abgelegt.
+- `search` durchsucht diesen Text mit ripgrep. Jeder Treffer nennt ID, Version, Seite bzw. Zeile und den Pfad der Originaldatei.
+- `page` rendert eine PDF-Seite als PNG, um einen Treffer im Original zu pruefen (Tabellen, Abbildungen, Layout).
+- Zwei Skills (`local-doc-search`, `local-doc-sync`) machen die Suche aus Codex und Claude nutzbar.
+
+## Vorteile
+
+- **Eine Suche statt vieler Ordner:** mehrere Quellordner und Formate werden gemeinsam durchsucht.
+- **Nachvollziehbar:** Originalpfad, Version und PDF-Seite sind Teil jedes Treffers und lassen sich zitieren und gegenpruefen.
+- **Versionsbewusst:** Dokumentfamilie und Version werden aus Datei- und Ordnernamen erkannt. `-nokey.pdf` erscheint zuerst, `--all` zeigt alle Varianten.
+- **Schnell und inkrementell:** gesucht wird in lokalem Text; `sync` verarbeitet nur Dateien, deren SHA-256 sich geaendert hat.
+- **Sicher:** Originale werden nur gelesen. Der Index ist abgeleitet und jederzeit neu aufbaubar. Voruebergehend fehlende Quellen bleiben im Manifest erhalten.
+- **Lokal:** keine Cloud, keine Datenweitergabe.
+
+## Nutzen fuer KI-Agenten
+
+- **Aufbereiteter Klartext statt Binaerformat:** PDF, DOCX und ODT lassen sich von Agenten nicht effizient lesen. Der Index stellt sie als durchsuchbaren Text bereit, bei PDFs pro Seite.
+- **Gezielter Zugriff:** Ein Agent bekommt nur die Treffer, statt ganze Handbuecher in den Kontext zu laden. Das spart Kontext und Zeit.
+- **Belegbare Antworten:** Pfad, Version und Seite bzw. Zeile ermoeglichen Quellenangaben, die Menschen pruefen koennen.
+- **Visuelle Gegenpruefung:** `page` liefert die Originalseite als Bild, wenn der Text allein nicht reicht.
+- **Verlaessliche Nutzung:** Die tabellarische Ausgabe und die mitgelieferten Skills geben Agenten einen festen Ablauf. Verschiedene Versionen eines Dokuments werden dabei nicht gleichgesetzt.
+
+Grenzen: Fuer bildbasierte PDFs gibt es keine OCR, sie liefern keinen Text. DOCX, ODT, MD und TXT haben nur Zeilen-, keine Seitenreferenzen. Details stehen in den Abschnitten unten.
 
 ## Einrichtung
 
