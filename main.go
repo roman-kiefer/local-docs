@@ -28,6 +28,8 @@ type Config struct {
 	PDFToText       string      `json:"pdftotext"`
 	LibreOffice     string      `json:"libreoffice"`
 	EnableLegacyDOC bool        `json:"enable_legacy_doc"`
+	DataDir         string      `json:"data_dir"`
+	CheckUpdates    *bool       `json:"check_updates"`
 }
 
 type Document struct {
@@ -52,23 +54,36 @@ type Manifest struct {
 	Documents []Document `json:"documents"`
 }
 
+// version is set at build time via -ldflags "-X main.version=v1.2.3".
+var version = "dev"
+
 var versionRE = regexp.MustCompile(`(?i)(?:^|[^0-9])v?(\d+)[._-](\d+)(?:[._-](\d+))?(?:[^0-9]|$)`)
 var compactVersionRE = regexp.MustCompile(`(\d)(\d)(\d{2})$`)
 var suffixRE = regexp.MustCompile(`(?i)(?:[-_](?:nokey|old|key|neu|new|final|draft|kopie|copy))+$`)
 var pagesRE = regexp.MustCompile(`(?m)^Pages:\s*(\d+)\s*$`)
 
 func main() {
-	rootFlag := flag.String("root", ".", "project directory")
+	rootFlag := flag.String("root", "", "home directory with config.json and data (default: LOCAL_DOCS_HOME, ./ if it has config.json, else user data dir)")
 	flag.Parse()
 	if flag.NArg() == 0 {
-		fatal(errors.New("use: local-docs [--root DIR] init|sync|search|page"))
+		fatal(errors.New("use: local-docs [--root DIR] init|sync|search|page|install|update|version"))
 	}
-	root, err := filepath.Abs(*rootFlag)
+	root, err := resolveRoot(*rootFlag)
 	if err != nil {
 		fatal(err)
 	}
+	applyDataDir(root)
 	cmd := flag.Arg(0)
 	switch cmd {
+	case "version":
+		fmt.Println("local-docs", version)
+	case "install":
+		err = installSelf(root)
+	case "update":
+		fs := flag.NewFlagSet("update", flag.ExitOnError)
+		check := fs.Bool("check", false, "only report whether a newer version exists")
+		_ = fs.Parse(flag.Args()[1:])
+		err = updateSelf(root, *check)
 	case "init":
 		err = initConfig(root)
 	case "sync":
@@ -108,12 +123,18 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	if cmd == "search" || cmd == "sync" || cmd == "page" {
+		maybeNotifyUpdate(root)
+	}
 }
 
 func fatal(err error) { fmt.Fprintln(os.Stderr, "error:", err); os.Exit(1) }
 
 func initConfig(root string) error {
-	b, err := os.ReadFile(filepath.Join(root, "config.example.json"))
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return err
+	}
+	b, err := embeddedFS.ReadFile("config.example.json")
 	if err != nil {
 		return err
 	}
@@ -170,7 +191,7 @@ func within(parent, child string) bool {
 
 func readManifest(root string) (Manifest, error) {
 	var m Manifest
-	b, err := os.ReadFile(filepath.Join(root, "data", "manifest.json"))
+	b, err := os.ReadFile(filepath.Join(dataDir(root), "manifest.json"))
 	if os.IsNotExist(err) {
 		return Manifest{Schema: 1}, nil
 	}
@@ -381,10 +402,10 @@ func syncDocs(root string, cfg Config) error {
 	}
 	sort.Slice(docs, func(i, j int) bool { return strings.ToLower(docs[i].Path) < strings.ToLower(docs[j].Path) })
 	m.Documents, m.Updated = docs, time.Now().UTC().Format(time.RFC3339)
-	if err := atomicJSON(filepath.Join(root, "data", "manifest.json"), m); err != nil {
+	if err := atomicJSON(filepath.Join(dataDir(root), "manifest.json"), m); err != nil {
 		return err
 	}
-	fmt.Printf("sync: %d documents, %d errors; manifest: %s\n", len(docs), failures, filepath.Join(root, "data", "manifest.json"))
+	fmt.Printf("sync: %d documents, %d errors; manifest: %s\n", len(docs), failures, filepath.Join(dataDir(root), "manifest.json"))
 	return nil
 }
 
@@ -395,7 +416,7 @@ func removeStale(root string, previous, current []string) {
 	}
 	for _, p := range previous {
 		if !keep[p] && strings.HasPrefix(filepath.Clean(p), "text"+string(filepath.Separator)) {
-			_ = os.Remove(filepath.Join(root, "data", p))
+			_ = os.Remove(filepath.Join(dataDir(root), p))
 		}
 	}
 }
@@ -467,7 +488,7 @@ func writeParts(root, id string, parts []string) ([]string, error) {
 	for i, content := range parts {
 		name := fmt.Sprintf("%s-p%04d.txt", id, i+1)
 		rel := filepath.Join("text", name)
-		path := filepath.Join(root, "data", rel)
+		path := filepath.Join(dataDir(root), rel)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return nil, err
 		}
@@ -633,7 +654,7 @@ func searchDocs(root, query string, all bool, limit int) error {
 			continue
 		}
 		for i, p := range d.Texts {
-			byText[strings.ToLower(filepath.Clean(filepath.Join(root, "data", p)))] = struct {
+			byText[strings.ToLower(filepath.Clean(filepath.Join(dataDir(root), p)))] = struct {
 				doc  Document
 				page int
 			}{d, i + 1}
@@ -642,7 +663,7 @@ func searchDocs(root, query string, all bool, limit int) error {
 	if len(byText) == 0 {
 		return errors.New("empty index; run sync")
 	}
-	cmd := exec.Command("rg", "--json", "--ignore-case", "--fixed-strings", "--", query, filepath.Join(root, "data", "text"))
+	cmd := exec.Command("rg", "--json", "--ignore-case", "--fixed-strings", "--", query, filepath.Join(dataDir(root), "text"))
 	b, err := cmd.Output()
 	if err != nil {
 		var ex *exec.ExitError
@@ -736,7 +757,7 @@ func viewPage(root string, cfg Config, id string, page int) error {
 		if page > d.Pages {
 			return fmt.Errorf("page %d exceeds %d pages", page, d.Pages)
 		}
-		viewDir := filepath.Join(root, "data", "views")
+		viewDir := filepath.Join(dataDir(root), "views")
 		if err := os.MkdirAll(viewDir, 0755); err != nil {
 			return err
 		}
