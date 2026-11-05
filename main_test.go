@@ -32,6 +32,29 @@ func TestSupportedSkipsOfficeLockFile(t *testing.T) {
 	}
 }
 
+func TestPlainTextExtraction(t *testing.T) {
+	src := t.TempDir()
+	root := t.TempDir()
+	for _, name := range []string{"note.md", "note.txt"} {
+		if !supported(filepath.Join(src, name), Config{}) {
+			t.Fatalf("%s not supported", name)
+		}
+		path := filepath.Join(src, name)
+		if err := os.WriteFile(path, []byte("\ufeffAlpha\r\nBeta\r\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		d := Document{ID: fileID(path), Path: path, Format: strings.TrimPrefix(filepath.Ext(name), ".")}
+		texts, err := extract(root, Config{}, d)
+		if err != nil || len(texts) != 1 {
+			t.Fatalf("%s: %v %v", name, texts, err)
+		}
+		b, _ := os.ReadFile(filepath.Join(root, "data", texts[0]))
+		if string(b) != "Alpha\nBeta\n" {
+			t.Errorf("%s: %q", name, b)
+		}
+	}
+}
+
 func TestXMLExtraction(t *testing.T) {
 	dir := t.TempDir()
 	for _, tc := range []struct{ format, name, body string }{

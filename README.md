@@ -17,7 +17,7 @@ go run . page --id <ID-aus-Treffer> --page 12
 
 `go build -o local-docs.exe .` erstellt eine eigenstaendige EXE. `local-docs.exe` muss im Projektordner gestartet werden oder mit `--root <Pfad-zum-Checkout>` aufgerufen werden.
 
-`sync` erkennt PDF, DOCX und ODT; alte DOC-Dateien nur bei `enable_legacy_doc: true`. Die DOC-Konvertierung erfolgt in einem temporaeren Verzeichnis. Originale werden nur gelesen. Fuer bildbasierte PDFs ist keine OCR enthalten. Gesperrte PDFs und Extraktionsfehler stehen mit Fehlermeldung im Manifest.
+`sync` erkennt PDF, DOCX, ODT sowie Markdown- und Textdateien (MD, TXT; nur Zeilenreferenzen); alte DOC-Dateien nur bei `enable_legacy_doc: true`. Die DOC-Konvertierung erfolgt in einem temporaeren Verzeichnis. Originale werden nur gelesen. Fuer bildbasierte PDFs ist keine OCR enthalten. Gesperrte PDFs und Extraktionsfehler stehen mit Fehlermeldung im Manifest.
 
 `search` durchsucht extrahierten UTF-8-Text mit `rg`. Standardmaessig erscheinen Treffer bevorzugter Varianten zuerst; `--all` zeigt auch alle Fallback-Varianten. Die Ausgabe ist tabellarisch mit ID, Version, Seite/Zeile und Originalpfad. DOCX und ODT haben keine zuverlaessige Seitenzuordnung; dort ist nur eine Textzeile angegeben. `page` erzeugt eine PNG-Datei in `data/views/` und gibt ihren Pfad aus.
 

@@ -264,7 +264,7 @@ func supported(path string, cfg Config) bool {
 		return false
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".pdf", ".docx", ".odt":
+	case ".pdf", ".docx", ".odt", ".md", ".txt":
 		return true
 	case ".doc":
 		return cfg.EnableLegacyDOC
@@ -423,6 +423,13 @@ func extract(root string, cfg Config, d Document) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		parts = []string{text}
+	case "md", "txt":
+		b, err := os.ReadFile(d.Path)
+		if err != nil {
+			return nil, err
+		}
+		text := strings.ReplaceAll(strings.TrimPrefix(string(b), "\ufeff"), "\r\n", "\n")
 		parts = []string{text}
 	case "doc":
 		text, err := extractDOC(cfg, d.Path)
