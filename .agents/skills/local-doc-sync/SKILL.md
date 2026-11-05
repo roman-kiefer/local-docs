@@ -9,6 +9,6 @@ Nutze diesen Skill, wenn der Nutzer den zentralen Dokumentationsindex aktualisie
 
 Finde den tatsaechlichen Speicherort dieser `SKILL.md`, auch wenn der persoenliche Skill-Ordner eine Verknuepfung ist. Das Projektverzeichnis liegt drei Verzeichnisse oberhalb dieses Skill-Ordners (`.agents/skills/local-doc-sync`). Lies dort `AGENTS.md` und pruefe, ob `config.json` vorhanden ist. Fuehre im Projektverzeichnis `go run . sync` aus. Veraendere weder die Quellordner noch deren Originaldateien.
 
-Pruefe danach die Ausgabe und `data/manifest.json`: Anzahl der Dokumente, Eintraege mit `status: error` und Warnungen zu fehlenden Quellordnern. Melde diese Zahlen sowie den Zeitpunkt der Aktualisierung. Bei Fehlern nenne die betroffenen Originalpfade und die Ursache. Ein nicht erreichbarer Quellordner bleibt im Manifest erhalten und darf nicht als leer interpretiert werden.
+Pruefe danach die Ausgabe und `data/manifest.json`: Anzahl der Dokumente, Eintraege mit `status: error` und Warnungen zu fehlenden Quellordnern. Melde diese Zahlen sowie den Zeitpunkt der Aktualisierung. Bei Fehlern nenne die betroffenen Originalpfade und die Ursache. Das gilt auch fuer `web_sources` (URLs): Warnungen wie "web source unavailable" (z. B. HTTP 401 wegen fehlender Zugangsdaten) melden, aber niemals Passwoerter aus `config.json` ausgeben. Ein nicht erreichbarer Quellordner bleibt im Manifest erhalten und darf nicht als leer interpretiert werden.
 
 Die Synchronisierung prueft SHA-256 und extrahiert nur geaenderte Dokumente neu. Sie erstellt keinen Zeitplan.

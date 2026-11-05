@@ -3,6 +3,14 @@
     "C:\\example\\manuals",
     "D:\\example\\release-notes"
   ],
+  "web_sources": [
+    {
+      "url": "https://kb.example.invalid/docs/",
+      "username": "",
+      "password": "",
+      "max_pages": 500
+    }
+  ],
   "poppler_bin": "",
   "pdftotext": "",
   "libreoffice": "",

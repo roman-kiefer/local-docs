@@ -22,11 +22,12 @@ import (
 )
 
 type Config struct {
-	Sources         []string `json:"sources"`
-	PopplerBin      string   `json:"poppler_bin"`
-	PDFToText       string   `json:"pdftotext"`
-	LibreOffice     string   `json:"libreoffice"`
-	EnableLegacyDOC bool     `json:"enable_legacy_doc"`
+	Sources         []string    `json:"sources"`
+	WebSources      []WebSource `json:"web_sources"`
+	PopplerBin      string      `json:"poppler_bin"`
+	PDFToText       string      `json:"pdftotext"`
+	LibreOffice     string      `json:"libreoffice"`
+	EnableLegacyDOC bool        `json:"enable_legacy_doc"`
 }
 
 type Document struct {
@@ -134,8 +135,13 @@ func readConfig(root string) (Config, error) {
 	if err = json.Unmarshal(b, &cfg); err != nil {
 		return cfg, err
 	}
-	if len(cfg.Sources) == 0 {
-		return cfg, errors.New("config requires at least one source")
+	if len(cfg.Sources) == 0 && len(cfg.WebSources) == 0 {
+		return cfg, errors.New("config requires at least one source or web source")
+	}
+	for i, ws := range cfg.WebSources {
+		if cfg.WebSources[i], err = normalizeWebSource(ws); err != nil {
+			return cfg, err
+		}
 	}
 	root, err = filepath.Abs(root)
 	if err != nil {
@@ -285,6 +291,7 @@ func syncDocs(root string, cfg Config) error {
 	seen := make(map[string]bool)
 	var docs []Document
 	var failures int
+	webKept := make(map[string]bool)
 	for _, source := range cfg.Sources {
 		info, err := os.Stat(source)
 		if err != nil || !info.IsDir() {
@@ -355,8 +362,20 @@ func syncDocs(root string, cfg Config) error {
 			return err
 		}
 	}
+	for _, ws := range cfg.WebSources {
+		webDocs, n := syncWebSource(root, ws, m.Documents)
+		failures += n
+		for _, d := range webDocs {
+			webKept[d.ID] = true
+		}
+		docs = append(docs, webDocs...)
+	}
 	for _, d := range m.Documents {
-		if !seen[strings.ToLower(filepath.Clean(d.Path))] {
+		if isWebDoc(d) {
+			if !webKept[d.ID] {
+				removeStale(root, d.Texts, nil)
+			}
+		} else if !seen[strings.ToLower(filepath.Clean(d.Path))] {
 			removeStale(root, d.Texts, nil)
 		}
 	}
@@ -440,9 +459,13 @@ func extract(root string, cfg Config, d Document) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("unsupported format %s", d.Format)
 	}
+	return writeParts(root, d.ID, parts)
+}
+
+func writeParts(root, id string, parts []string) ([]string, error) {
 	paths := make([]string, len(parts))
 	for i, content := range parts {
-		name := fmt.Sprintf("%s-p%04d.txt", d.ID, i+1)
+		name := fmt.Sprintf("%s-p%04d.txt", id, i+1)
 		rel := filepath.Join("text", name)
 		path := filepath.Join(root, "data", rel)
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -703,6 +726,9 @@ func viewPage(root string, cfg Config, id string, page int) error {
 	for _, d := range m.Documents {
 		if d.ID != id {
 			continue
+		}
+		if d.Format == "html" {
+			return fmt.Errorf("web page has no PDF pages; open %s", d.Path)
 		}
 		if d.Format != "pdf" || d.Status != "ready" {
 			return errors.New("document is not a ready PDF")

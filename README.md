@@ -26,7 +26,7 @@ Durchsucht verteilte Dokumentation (PDF, DOCX, ODT, MD, TXT) aus mehreren Quello
 - **Visuelle Gegenpruefung:** `page` liefert die Originalseite als Bild, wenn der Text allein nicht reicht.
 - **Verlaessliche Nutzung:** Die tabellarische Ausgabe und die mitgelieferten Skills geben Agenten einen festen Ablauf. Verschiedene Versionen eines Dokuments werden dabei nicht gleichgesetzt.
 
-Grenzen: Fuer bildbasierte PDFs gibt es keine OCR, sie liefern keinen Text. DOCX, ODT, MD und TXT haben nur Zeilen-, keine Seitenreferenzen. Details stehen in den Abschnitten unten.
+Grenzen: Fuer bildbasierte PDFs gibt es keine OCR, sie liefern keinen Text. DOCX, ODT, MD, TXT und Webseiten haben nur Zeilen-, keine Seitenreferenzen. Details stehen in den Abschnitten unten.
 
 ## Einrichtung
 
@@ -44,6 +44,18 @@ go run . page --id <ID-aus-Treffer> --page 12
 `go build -o local-docs.exe .` erstellt eine eigenstaendige EXE. `local-docs.exe` muss im Projektordner gestartet werden oder mit `--root <Pfad-zum-Checkout>` aufgerufen werden.
 
 `sync` erkennt PDF, DOCX, ODT sowie Markdown- und Textdateien (MD, TXT; nur Zeilenreferenzen); alte DOC-Dateien nur bei `enable_legacy_doc: true`. Die DOC-Konvertierung erfolgt in einem temporaeren Verzeichnis. Originale werden nur gelesen. Fuer bildbasierte PDFs ist keine OCR enthalten. Gesperrte PDFs und Extraktionsfehler stehen mit Fehlermeldung im Manifest.
+
+### Webseiten als Quelle
+
+Zusaetzlich zu Ordnern kann eine URL in `web_sources` eingetragen werden. `sync` ruft die Seite ab, folgt Links rekursiv und indexiert den Text jeder Seite. Es werden nur Seiten unterhalb des angegebenen URL-Pfads mit gleichem Host besucht; Links nach aussen und Weiterleitungen aus diesem Bereich heraus werden ignoriert.
+
+```json
+"web_sources": [
+  { "url": "https://kb.example.com/docs/", "username": "", "password": "", "max_pages": 500 }
+]
+```
+
+`username` und `password` sind optional und werden als HTTP Basic Auth (z. B. `.htaccess`) nur an den konfigurierten Host gesendet. Sie stehen in der lokalen, nicht versionierten `config.json`. `max_pages` (Standard 500) begrenzt den Umfang. Es werden nur HTML- und Textseiten bis 5 MiB gelesen; `robots.txt` wird nicht ausgewertet, daher nur eigene oder freigegebene Seiten eintragen. Treffer zeigen die URL statt eines Dateipfads und nur eine Textzeile; `page` ist fuer Webseiten nicht verfuegbar. Ist eine Webquelle nicht erreichbar oder die Anmeldung schlaegt fehl, bleiben ihre bisherigen Eintraege erhalten; bei erfolgreichem Abruf verschwinden nicht mehr verlinkte Seiten aus dem Index. Der Index wird nicht automatisch aktualisiert, sondern bei jedem `sync`.
 
 `search` durchsucht extrahierten UTF-8-Text mit `rg`. Standardmaessig erscheinen Treffer bevorzugter Varianten zuerst; `--all` zeigt auch alle Fallback-Varianten. Die Ausgabe ist tabellarisch mit ID, Version, Seite/Zeile und Originalpfad. DOCX und ODT haben keine zuverlaessige Seitenzuordnung; dort ist nur eine Textzeile angegeben. `page` erzeugt eine PNG-Datei in `data/views/` und gibt ihren Pfad aus.
 

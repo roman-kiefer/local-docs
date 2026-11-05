@@ -5,6 +5,7 @@
 - Suche mit `go run . search --query "Begriff"`; die Ausgabe nennt Originalpfad, Version und PDF-Seite.
 - Fuer eine PDF-Seite `go run . page --id <ID> --page <N>` verwenden. Die ID steht in den Suchtreffern.
 - `go run . sync` aktualisiert nur den von diesem Projekt verwalteten Index. Quellordner, die voruebergehend fehlen, bleiben im Manifest erhalten.
+- Webseiten koennen als `web_sources` in `config.json` eingetragen werden (rekursiv, nur innerhalb der URL, optional Basic Auth). Treffer nennen die URL und eine Zeile; Zugangsdaten nie ausgeben oder committen.
 - Bei gleichen Dokumentfamilien und Versionen werden `-nokey.pdf`-Dateien zuerst angezeigt; andere Varianten bleiben suchbar.
 
 ## Repository-Skills
