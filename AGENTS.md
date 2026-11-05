@@ -2,6 +2,7 @@
 
 - Originaldokumente in den konfigurierten Quellordnern ausschliesslich lesen. Nie verschieben, umbenennen oder veraendern.
 - Vor der Nutzung `local-docs init` ausfuehren (oder `config.example.json` nach `config.json` kopieren) und Quellordner sowie Werkzeugpfade pruefen. Datenverzeichnis: `--root`, `LOCAL_DOCS_HOME`, Arbeitsverzeichnis mit `config.json`, sonst `%LOCALAPPDATA%\local-docs`.
+- `local-docs config --path` nennt den Pfad der `config.json`; `local-docs config` oeffnet sie im Editor.
 - Suche mit `local-docs search --query "Begriff"` (ohne installiertes Programm `go run . search ...`); die Ausgabe nennt Originalpfad, Version und PDF-Seite.
 - Fuer eine PDF-Seite `local-docs page --id <ID> --page <N>` verwenden. Die ID steht in den Suchtreffern.
 - `local-docs sync` aktualisiert nur den von diesem Projekt verwalteten Index. Quellordner, die voruebergehend fehlen, bleiben im Manifest erhalten.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -98,5 +99,27 @@ func TestConfigRejectsSourceOverlap(t *testing.T) {
 	}
 	if _, err := readConfig(root); err == nil {
 		t.Fatal("expected overlap error")
+	}
+}
+
+func TestConfigCommandCreatesAndPrintsPath(t *testing.T) {
+	root := t.TempDir()
+	if err := configCommand(root, []string{"--path"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "config.json")); err != nil {
+		t.Fatalf("config.json not created: %v", err)
+	}
+	if err := initConfig(root); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("init on existing config: got %v, want ErrExist", err)
+	}
+}
+
+func TestEditorCommandsPreferEnv(t *testing.T) {
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "myedit --wait")
+	cmds := editorCommands("x.json")
+	if len(cmds) < 2 || cmds[0].Args[0] != "myedit" || cmds[0].Args[1] != "--wait" || cmds[0].Args[2] != "x.json" {
+		t.Fatalf("unexpected first command: %v", cmds[0].Args)
 	}
 }
