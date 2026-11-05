@@ -34,7 +34,7 @@ Grenzen: Fuer bildbasierte PDFs gibt es keine OCR, sie liefern keinen Text. DOCX
 
 1. Von den GitHub-Releases das Archiv `local-docs_<os>_<arch>.zip` laden, entpacken und `local-docs install` ausfuehren. Das kopiert das Programm nach `%LOCALAPPDATA%\Programs\local-docs` (Linux/macOS: `~/.local/bin`), traegt es in den User-PATH ein (`--no-path` verhindert das), legt die Skills unter `~/.claude/skills` und `~/.codex/skills` an (vorhandene abweichende Skills bleiben unberuehrt, `--force` sichert und ersetzt sie) und prueft die externen Werkzeuge.
 2. ripgrep (`rg`) und Poppler (`pdfinfo`, `pdftotext`, `pdftoppm`) muessen weiterhin installiert sein. `soffice.com` ist nur fuer alte `.doc`-Dateien erforderlich.
-3. `config.json` im Datenverzeichnis anpassen (wird von `install` bzw. `init` angelegt).
+3. `config.json` anpassen: `local-docs config` legt sie bei Bedarf an, gibt den Pfad aus und oeffnet sie im Editor (`VISUAL`/`EDITOR`, sonst Standardanwendung des Systems). `local-docs config --path` gibt nur den Pfad aus.
 
 Das Datenverzeichnis (`config.json`, `data/`) wird in dieser Reihenfolge bestimmt: `--root DIR`, Umgebungsvariable `LOCAL_DOCS_HOME`, das Arbeitsverzeichnis, falls dort eine `config.json` liegt (bisheriges Verhalten), sonst `%LOCALAPPDATA%\local-docs` (Linux/macOS: Benutzer-Konfigurationsverzeichnis). Mit `"data_dir"` in `config.json` laesst sich nur der Index (`data/`) an einen anderen Ort legen; relative Pfade gelten ab dem Datenverzeichnis.
 

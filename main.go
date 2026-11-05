@@ -67,7 +67,7 @@ func main() {
 	rootFlag := flag.String("root", "", "home directory with config.json and data (default: LOCAL_DOCS_HOME, ./ if it has config.json, else user data dir)")
 	flag.Parse()
 	if flag.NArg() == 0 {
-		fatal(errors.New("use: local-docs [--root DIR] init|sync|search|page|install|update|version"))
+		fatal(errors.New("use: local-docs [--root DIR] init|config|sync|search|page|install|update|version"))
 	}
 	root, err := resolveRoot(*rootFlag)
 	if err != nil {
@@ -85,9 +85,15 @@ func main() {
 		check := fs.Bool("check", false, "only report whether a newer version exists")
 		_ = fs.Parse(flag.Args()[1:])
 		err = updateSelf(root, *check)
+	case "config":
+		err = configCommand(root, flag.Args()[1:])
 	case "init":
+		path := filepath.Join(root, "config.json")
 		if err = initConfig(root); err == nil {
-			fmt.Println("config created:", filepath.Join(root, "config.json"))
+			fmt.Println("config created:", path)
+		} else if errors.Is(err, os.ErrExist) {
+			fmt.Println("config exists:", path, "(open with: local-docs config)")
+			err = nil
 		}
 	case "sync":
 		var cfg Config
