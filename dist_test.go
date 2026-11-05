@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -238,5 +239,20 @@ func TestRefreshKeepsSymlinkedSkill(t *testing.T) {
 	}
 	if !isSymlink(link) {
 		t.Fatal("refresh replaced a symlinked skill")
+	}
+}
+
+func TestUpdateWithoutReleaseIsNotAnError(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	oldAPI, oldVer := releaseAPI, version
+	defer func() { releaseAPI, version = oldAPI, oldVer }()
+	releaseAPI = srv.URL + "/latest"
+	version = "v1.0.0"
+	if _, err := latestRelease(); !errors.Is(err, errNoRelease) {
+		t.Fatalf("want errNoRelease, got %v", err)
+	}
+	if err := updateSelf(t.TempDir(), false); err != nil {
+		t.Fatalf("404 must not be an error: %v", err)
 	}
 }

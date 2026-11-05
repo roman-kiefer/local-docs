@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,14 +43,28 @@ func fetch(url string, limit int64, timeout time.Duration) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("%s: HTTP %d", url, resp.StatusCode)
+		return nil, &httpError{URL: url, Status: resp.StatusCode}
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
 
+type httpError struct {
+	URL    string
+	Status int
+}
+
+func (e *httpError) Error() string { return fmt.Sprintf("%s: HTTP %d", e.URL, e.Status) }
+
+// errNoRelease means no regular (non-pre-release) release has been published yet.
+var errNoRelease = errors.New("no release published yet")
+
 func latestRelease() (release, error) {
 	var r release
 	b, err := fetch(releaseAPI, 4<<20, 30*time.Second)
+	var he *httpError
+	if errors.As(err, &he) && he.Status == http.StatusNotFound {
+		return r, errNoRelease
+	}
 	if err != nil {
 		return r, err
 	}
@@ -146,6 +161,10 @@ func updateSelf(root string, checkOnly bool) error {
 		_ = os.Remove(exe + ".old")
 	}
 	r, err := latestRelease()
+	if errors.Is(err, errNoRelease) {
+		fmt.Printf("local-docs %s: no release has been published yet, nothing to update\n", version)
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("release lookup: %w", err)
 	}
